@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Open World Ultra - Mega Update</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #game-ui { 
+            position: absolute; top: 15px; left: 15px; color: white; 
+            background: rgba(0,0,0,0.6); padding: 15px; border-radius: 10px; border: 1px solid gold;
+        }
+        #shop-menu {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 300px; background: #2c3e50; color: white; padding: 20px;
+            border: 4px solid gold; display: none; border-radius: 10px; text-align: center;
+        }
+        #dialog-box { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 70%; background: #000; color: #fff; padding: 20px;
+            border: 2px solid #fff; display: none; border-radius: 10px;
+        }
+        canvas { display: block; }
+        .btn { background: #27ae60; color: white; border: none; padding: 10px; margin: 5px; cursor: pointer; width: 100%; border-radius: 5px; }
+        .btn-red { background: #c0392b; }
+        .stat-val { color: #f1c40f; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="game-ui">
+    <div>🕒 <span id="clock">08:00</span></div>
+    <div>💰 UANG: $<span id="money" class="stat-val">100</span></div>
+    <div>⚔️ SENJATA: <span id="weapon" class="stat-val">Tangan Kosong</span></div>
+    <div>❤️ HP: <span id="hp" class="stat-val">100/100</span></div>
+    <div>🌟 LVL: <span id="lvl" class="stat-val">1</span> (XP: <span id="xp">0</span>)</div>
+</div>
+
+<div id="shop-menu">
+    <h2>TOKO SENJATA</h2>
+    <p>Uangmu: $<span id="shop-money">0</span></p>
+    <button class="btn" onclick="buyWeapon('Pedang Kayu', 50, 15)">Beli Pedang Kayu ($50)</button>
+    <button class="btn" onclick="buyWeapon('Pedang Besi', 200, 35)">Beli Pedang Besi ($200)</button>
+    <button class="btn" onclick="buyWeapon('Pedang Naga', 1000, 100)">Beli Pedang Naga ($1000)</button>
+    <button class="btn btn-red" onclick="toggleShop()">TUTUP</button>
+</div>
+
+<div id="dialog-box">
+    <div id="dialog-text"></div>
+    <button onclick="closeDialog()" style="margin-top:10px;">Lanjut</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Stats Awal
+    let player = {
+        x: 500, y: 500, size: 40, speed: 6,
+        money: 100, hp: 100, maxHp: 100,
+        weapon: "Tangan Kosong", damage: 10,
+        lvl: 1, xp: 0
+    };
+
+    let enemy = { name: "Monster Hutan", hp: 100, maxHp: 100, damage: 10 };
+    let gameState = "EXPLORE";
+    let camera = { x: 0, y: 0 };
+    let keys = {};
+    let time = 480;
+
+    // Objek Dunia
+    const objects = [
+        { x: 300, y: 300, w: 150, h: 150, color: '#8b4513', type: 'house', label: 'RUMAH' },
+        { x: 700, y: 400, w: 50, h: 50, color: '#f1c40f', type: 'shop_npc', label: 'PEDAGANG (S)' },
+        { x: 1000, y: 1000, w: 400, h: 400, color: 'rgba(255,0,0,0.2)', type: 'battle_zone', label: 'ZONA MONSTER' }
+    ];
+
+    window.addEventListener('keydown', e => {
+        keys[e.key.toLowerCase()] = true;
+        if(gameState === "BATTLE") handleBattle(e.key.toLowerCase());
+    });
+    window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    function toggleShop() {
+        const shop = document.getElementById('shop-menu');
+        shop.style.display = shop.style.display === 'block' ? 'none' : 'block';
+        document.getElementById('shop-money').innerText = player.money;
+    }
+
+    function buyWeapon(name, price, dmg) {
+        if(player.money >= price) {
+            player.money -= price;
+            player.weapon = name;
+            player.damage = dmg;
+            updateUI();
+            alert("Kamu membeli " + name + "!");
+            toggleShop();
+        } else {
+            alert("Uang tidak cukup!");
+        }
+    }
+
+    function handleBattle(key) {
+        if(key === 'a') { // Serang
+            enemy.hp -= player.damage;
+            if(enemy.hp <= 0) {
+                player.xp += 50;
+                player.money += 100;
+                checkLevelUp();
+                gameState = "EXPLORE";
+                player.y -= 100;
+                updateUI();
+                showDialog("Menang! Dapat $100 & 50 XP.");
+            } else {
+                player.hp -= enemy.damage;
+                if(player.hp <= 0) location.reload();
+                updateUI();
+            }
+        }
+    }
+
+    function checkLevelUp() {
+        if(player.xp >= player.lvl * 100) {
+            player.lvl++;
+            player.maxHp += 20;
+            player.hp = player.maxHp;
+            alert("LEVEL UP! Sekarang Level " + player.lvl);
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('money').innerText = player.money;
+        document.getElementById('weapon').innerText = player.weapon;
+        document.getElementById('hp').innerText = player.hp + "/" + player.maxHp;
+        document.getElementById('lvl').innerText = player.lvl;
+        document.getElementById('xp').innerText = player.xp;
+    }
+
+    function update() {
+        if(gameState === "EXPLORE") {
+            if(keys['w']) player.y -= player.speed;
+            if(keys['s']) player.y += player.speed;
+            if(keys['a']) player.x -= player.speed;
+            if(keys['d']) player.x += player.speed;
+
+            camera.x = player.x - canvas.width/2;
+            camera.y = player.y - canvas.height/2;
+
+            objects.forEach(obj => {
+                let dist = Math.hypot(player.x - obj.x, player.y - obj.y);
+                if(dist < 60) {
+                    if(obj.type === 'shop_npc' && keys['s']) toggleShop();
+                    if(obj.type === 'battle_zone') {
+                        gameState = "BATTLE";
+                        enemy.hp = enemy.maxHp;
+                        showDialog("MONSTER MUNCUL! Tekan 'A' untuk menyerang dengan " + player.weapon);
+                    }
+                }
+            });
+        }
+    }
+
+    function draw() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+
+        // Map
+        ctx.fillStyle = '#1b5e20';
+        ctx.fillRect(0, 0, 3000, 3000);
+
+        objects.forEach(obj => {
+            ctx.fillStyle = obj.color;
+            ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+            ctx.fillStyle = "white";
+            ctx.fillText(obj.label, obj.x, obj.y - 10);
+        });
+
+        // Player
+        ctx.fillStyle = '#3498db';
+        ctx.fillRect(player.x, player.y, player.size, player.size);
+
+        ctx.restore();
+
+        if(gameState === "BATTLE") {
+            ctx.fillStyle = "rgba(0,0,0,0.8)";
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.fillText("BATTLE: Tekan 'A' untuk Serang", canvas.width/2 - 100, 100);
+            ctx.fillText("HP MONSTER: " + enemy.hp, canvas.width/2 - 50, 200);
+        }
+
+        requestAnimationFrame(() => { update(); draw(); });
+    }
+
+    function showDialog(text) {
+        document.getElementById('dialog-text').innerText = text;
+        document.getElementById('dialog-box').style.display = 'block';
+    }
+    function closeDialog() { document.getElementById('dialog-box').style.display = 'none'; }
+
+    draw();
+</script>
+
+</body>
+</html>
